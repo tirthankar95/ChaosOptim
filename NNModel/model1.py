@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set_style()
 
+# CLASS 1.
 class NNetwork(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -21,6 +22,29 @@ class NNetwork(nn.Module):
         )
     def forward(self, Xtr):
         return self.fc(Xtr)
+
+# CLASS 2.
+class ModelWrapper():
+    Xtr, Ytr, Xtest, Ytest = None, None, None, None 
+    
+    @classmethod
+    def generate_static_data(cls):
+        if cls.Xtr == None:
+            X = torch.tensor(np.random.normal(size=(M, 1)), dtype = torch.float32)
+            Y = torch.tensor([[1,0] if x > 0 else [0,1] for x in X], dtype = torch.float32)
+            cls.Xtr, cls.Xtest, cls.Ytr, cls.Ytest = train_test_split(X, Y, test_size = 0.3, random_state = 1919)
+    
+    def __init__(self, dim):
+        self.model = NNetwork(dim)
+        self.criterion = nn.CrossEntropyLoss()
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
+        self.generate_static_data()
+    
+    def trajectory_unroll_once():
+        pass
+
+
+
 
 if __name__ == '__main__':
     dbg = 'off'
