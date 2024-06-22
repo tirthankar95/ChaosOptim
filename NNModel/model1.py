@@ -46,7 +46,7 @@ class ModelWrapper():
     def __init__(self):
         self.generate_static_data()
         self.model = NNetwork(self.dim)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
+        self.optimizer = optim.SGD(self.model.parameters(), lr=0.01)
 
     '''
     Returns the list of weights for the trajectory.
