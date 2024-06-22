@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import multiprocessing as mpc 
 from GLOBAL import global_module as g 
-import copy
+import math
 from typing import List 
 
 # def load_parameters(model, fName):
@@ -16,45 +16,56 @@ from typing import List
 #         for idx, layer in enumerate(model.parameters()):
 #             torch.save(layer, f'dat/{fName}_layer{idx}')
 
-def trajectory_unroll(model):
-    
+def sanity_check_wts(m1, m2):
+    for p1, p2 in zip(m1.parameters(), m2.parameters()):
+        assert torch.equal(p1,p2)
 '''
+Returns the list of distance measures.
 '''
-def model_iter() -> List[int]:
-    pass
-
+dist, child_models = [[_ for _ in range(g.kantz_iter)] for __ in range(g.child_n) ], []
+def get_distance(indx, cModel, p_wts) -> List[int]:
+    global dist
+    for _ in range(g.kantz_iter):
+        cModel.trajectory_unroll_once()
+        p_wt = p_wts[_]
+        _sum_ = 0 
+        for idx, param in enumerate(cModel.model.parameters()):
+            _sum_ += torch.sum((param.data - p_wt[idx])**2).item()
+        temp_dist = math.sqrt(_sum_)
+        dist[indx][_] = temp_dist
 '''
 Test:
 for param1, param2 in zip(obj1.parameters(), obj.parameters()):
     assert torch.equal(param1, param2)
 '''
-def init_wt(cModel, pModel):
-    cModel.load_state_dict(pModel.state_dict())
-    for idx, lc in enumerate(cModel.parameters()):
+def init_wt(nn_class, pModel):
+    global child_models
+    cModel = nn_class()
+    cModel.model.load_state_dict(pModel.state_dict())
+    for idx, lc in enumerate(cModel.model.parameters()):
         lc.data = lc.data + torch.normal(0, g.std, size = lc.shape)
+    child_models.append(cModel)
 
-def run_nn(nn_class, ip_size):
-    join = []
-    parent_model = nn_class(ip_size)
-    child_models = []
+def run_nn(nn_class):
+    parent_model = nn_class()
     # COPYING SIMILAR WTS TO CHILD FROM PARENT.
     for _ in range(g.child_n):
-        child_models.append(nn_class(ip_size))
-        p = mpc.Process(target = init_wt, args = (child_models[-1], parent_model))
-        join.append(p)
-        p.start()
-    for p in join:
-        p.join()
+        init_wt(nn_class, parent_model.model)
     # TRAJECTORY UNROLL. 
-    join = []
+    p_wts = parent_model.trajectory_unroll()
     for _ in range(g.child_n):
-        p = mpc.Process(target = model_iter, args = )
-        join.append(p)
-        p.start()
-    for p in join:
-        p.join()
-    
+        get_distance(_, child_models[_], p_wts)
+    # CALCULATE LYAPK
+    lyapk = 0
+    for t in range(g.kantz_iter):
+        temp_dist = 0
+        for _ in range(g.child_n):
+            temp_dist += dist[_][t]
+        temp_dist /= g.child_n
+        lyapk += math.log(temp_dist)
+    lyapk = lyapk / g.kantz_iter
+    print(lyapk)
 
 if __name__ == '__main__':
     from NNModel import model1 as m1 
-    run_nn(m1.NNetwork, ip_size = 10)
+    run_nn(m1.ModelWrapper)

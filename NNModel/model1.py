@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm 
 import matplotlib.pyplot as plt 
+import copy
 import seaborn as sns
 sns.set_style()
 
@@ -13,11 +14,11 @@ sns.set_style()
 class NNetwork(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        self.fc = nn.Sequential( nn.Linear(dim, 256),
+        self.fc = nn.Sequential( nn.Linear(dim, 8),
                                  nn.ReLU(),
-                                 nn.Linear(256, 64), 
+                                 nn.Linear(8, 4), 
                                  nn.ReLU(), 
-                                 nn.Linear(64, 2),
+                                 nn.Linear(4, 2),
                                  nn.Softmax()
         )
     def forward(self, Xtr):
@@ -26,63 +27,52 @@ class NNetwork(nn.Module):
 # CLASS 2.
 class ModelWrapper():
     Xtr, Ytr, Xtest, Ytest = None, None, None, None 
-    
+    train_dataset, train_loader = None, None
+    M, dim = 1024, 1 
+    epochs, batch_size = 16, 32 
+    criterion = None
+    final_loss = None 
     @classmethod
     def generate_static_data(cls):
         if cls.Xtr == None:
-            X = torch.tensor(np.random.normal(size=(M, 1)), dtype = torch.float32)
+            X = torch.tensor(np.random.normal(size=(cls.M, cls.dim)), dtype = torch.float32)
             Y = torch.tensor([[1,0] if x > 0 else [0,1] for x in X], dtype = torch.float32)
             cls.Xtr, cls.Xtest, cls.Ytr, cls.Ytest = train_test_split(X, Y, test_size = 0.3, random_state = 1919)
-    
-    def __init__(self, dim):
-        self.model = NNetwork(dim)
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
+            # IMP -> https://stackoverflow.com/questions/67683406/difference-between-dataset-and-tensordataset-in-pytorch
+            cls.train_dataset = TensorDataset(ModelWrapper.Xtr, ModelWrapper.Ytr)
+            cls.train_loader = DataLoader(cls.train_dataset, cls.batch_size, shuffle = True)
+            cls.criterion = nn.CrossEntropyLoss()
+
+    def __init__(self):
         self.generate_static_data()
-    
-    def trajectory_unroll_once():
-        pass
+        self.model = NNetwork(self.dim)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
 
-
-
+    '''
+    Returns the list of weights for the trajectory.
+    '''
+    def trajectory_unroll(self):
+        wts = []
+        for epoch in range(ModelWrapper.epochs):
+            wt, loss = self.trajectory_unroll_once()
+            wts.append(wt)
+        ModelWrapper.final_loss = loss 
+        return wts
+    '''
+    Returns the weight after one iteration.
+    '''
+    def trajectory_unroll_once(self): 
+        for xb, yb in ModelWrapper.train_loader:
+            yp = self.model(xb)
+            loss = ModelWrapper.criterion(yp, yb)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+        wt = []
+        for idx, parameters in enumerate(self.model.parameters()):
+            wt.append(copy.deepcopy(parameters.data))
+        return wt, loss 
 
 if __name__ == '__main__':
-    dbg = 'off'
-    np.random.seed(1919)
-    M = 1024
-    X = torch.tensor(np.random.normal(size=(M, 1)), dtype = torch.float32)
-    Y = torch.tensor([[1,0] if x > 0 else [0,1] for x in X], dtype = torch.float32)
-    Xtr, Xtest, Ytr, Ytest = train_test_split(X, Y, test_size = 0.3, random_state = 1919)
-    # training.
-    nn_model = NNetwork(Xtr.shape[1])
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(nn_model.parameters(), lr=0.01)
-    epochs = 10
-    # mini-batches.
-    batch_size = 32
-    # IMP -> https://stackoverflow.com/questions/67683406/difference-between-dataset-and-tensordataset-in-pytorch
-    train_dataset = TensorDataset(Xtr, Ytr)
-    train_loader = DataLoader(train_dataset, batch_size, shuffle = True)
-    plot_epoch, plot_loss = [], []
-    for _ in tqdm(range(epochs)):
-        total_loss, cnt_loss = 0, 0
-        for xb, yb in train_loader:
-            yp = nn_model(xb)
-            loss = criterion(yp, yb)
-            total_loss += loss.item(); cnt_loss += 1
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-        plot_epoch.append(_+1)
-        plot_loss.append(total_loss/cnt_loss)
-    # plot training loss. 
-    plt.plot(plot_epoch, plot_loss)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Loss v/s Epoch.')
-    if dbg =="on": plt.show()
-    # testing.
-    with torch.no_grad():
-        YtestP = nn_model(Xtest)
-        acc = (YtestP.round() == Ytest).float().mean()
-        print(f'\nTest Accuracy: {round(acc.item()*100, 2)}%\n')
+    mw = ModelWrapper()
+    dat = mw.trajectory_unroll()
