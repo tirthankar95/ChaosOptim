@@ -1,3 +1,4 @@
-std = 0.001
-child_n = 4
-kantz_iter = 2
+std = 0.0001
+child_n = 16
+kantz_iter = None
+parallel_points = 32

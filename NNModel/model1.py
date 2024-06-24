@@ -29,7 +29,7 @@ class ModelWrapper():
     Xtr, Ytr, Xtest, Ytest = None, None, None, None 
     train_dataset, train_loader = None, None
     M, dim = 1024, 1 
-    epochs, batch_size = 16, 32 
+    epochs, batch_size = 64, 32 
     criterion = None
     final_loss = None 
     @classmethod

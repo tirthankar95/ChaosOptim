@@ -6,6 +6,7 @@ from GLOBAL import global_module as g
 import math
 from typing import List 
 
+dist, child_models = None, None
 # def load_parameters(model, fName):
 #     with torch.no_grad():
 #         for idx, layer in enumerate(model.parameters()):
@@ -22,7 +23,6 @@ def sanity_check_wts(m1, m2):
 '''
 Returns the list of distance measures.
 '''
-dist, child_models = [[_ for _ in range(g.kantz_iter)] for __ in range(g.child_n) ], []
 def get_distance(indx, cModel, p_wts) -> List[int]:
     global dist
     for _ in range(g.kantz_iter):
@@ -47,7 +47,10 @@ def init_wt(nn_class, pModel):
     child_models.append(cModel)
 
 def run_nn(nn_class):
+    global dist, child_models
     parent_model = nn_class()
+    g.kantz_iter = int(nn_class.epochs * 0.3)
+    dist, child_models = [[_ for _ in range(g.kantz_iter)] for __ in range(g.child_n) ], []
     # COPYING SIMILAR WTS TO CHILD FROM PARENT.
     for _ in range(g.child_n):
         init_wt(nn_class, parent_model.model)
@@ -64,8 +67,4 @@ def run_nn(nn_class):
         temp_dist /= g.child_n
         lyapk += math.log(temp_dist)
     lyapk = lyapk / g.kantz_iter
-    print(lyapk)
-
-if __name__ == '__main__':
-    from NNModel import model1 as m1 
-    run_nn(m1.ModelWrapper)
+    return lyapk, nn_class.final_loss.item()
